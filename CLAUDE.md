@@ -150,6 +150,12 @@ yg-cwgl/
 
 ### 启动方式
 ```bash
+# 推荐：使用根目录脚本（不会影响其他项目）
+./dev.sh start     # 启动
+./dev.sh stop      # 停止
+./dev.sh restart   # 重启
+
+# 或手动分步启动
 # 后端
 cd backend && npm run start:dev
 
