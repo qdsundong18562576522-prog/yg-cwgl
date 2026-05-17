@@ -1,0 +1,549 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ====== 1. 用户与认证 ======
+
+enum UserRole {
+  admin
+  finance
+  leader
+  viewer
+}
+
+model User {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique @db.VarChar(50)
+  passwordHash String    @map("password_hash") @db.VarChar(128)
+  displayName  String    @map("display_name") @db.VarChar(50)
+  role         UserRole  @default(viewer)
+  department   String?   @db.VarChar(100)
+  phone        String?   @db.VarChar(20)
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  operationLogs OperationLog[]
+  approvals     Approval[]
+  approvalsAsApprover Approval[] @relation("Approver")
+
+  @@map("users")
+}
+
+// ====== 2. 基础数据 ======
+
+model ChartOfAccount {
+  id        Int              @id @default(autoincrement())
+  code      String           @unique @db.VarChar(50)
+  name      String           @db.VarChar(100)
+  type      AccountType
+  level     Int              @default(1)
+  parentId  Int?             @map("parent_id")
+  parent    ChartOfAccount?  @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children  ChartOfAccount[] @relation("AccountHierarchy")
+  isActive  Boolean          @default(true) @map("is_active")
+  sortOrder Int              @default(0) @map("sort_order")
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  transactions Transaction[]
+
+  @@map("chart_of_accounts")
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+model BankAccount {
+  id            Int            @id @default(autoincrement())
+  name          String         @db.VarChar(100)
+  accountNo     String         @unique @map("account_no") @db.VarChar(50)
+  bankName      String         @map("bank_name") @db.VarChar(100)
+  type          BankAccountType @default(CHECKING)
+  balance       Decimal        @default(0) @db.Decimal(15, 2)
+  currency      String         @default("CNY") @db.VarChar(10)
+  openDate      DateTime?      @map("open_date")
+  isActive      Boolean        @default(true) @map("is_active")
+  remark        String?        @db.Text
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  bankStatementItems BankStatementItem[]
+  transactions       Transaction[]
+  reconciliations    Reconciliation[]
+
+  @@map("bank_accounts")
+}
+
+enum BankAccountType {
+  CHECKING     // 基本户
+  GENERAL      // 一般户
+  SPECIAL      // 专户
+  CASH         // 现金账户
+}
+
+model Counterparty {
+  id        Int              @id @default(autoincrement())
+  name      String           @db.VarChar(200)
+  type      CounterpartyType
+  contact   String?          @db.VarChar(50)
+  phone     String?          @db.VarChar(20)
+  address   String?          @db.VarChar(200)
+  remark    String?          @db.Text
+  isActive  Boolean          @default(true) @map("is_active")
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  transactions  Transaction[]
+  receivables   Receivable[]
+  payables      Payable[]
+
+  @@map("counterparties")
+}
+
+enum CounterpartyType {
+  CUSTOMER
+  SUPPLIER
+  BOTH
+}
+
+// ====== 3. 流水与对账 ======
+
+model Transaction {
+  id                  Int            @id @default(autoincrement())
+  type                TransactionType
+  amount              Decimal        @db.Decimal(15, 2)
+  direction           Direction
+  date                DateTime
+  description         String?        @db.Text
+  counterpartyId      Int?           @map("counterparty_id")
+  counterparty        Counterparty?  @relation(fields: [counterpartyId], references: [id])
+  accountId           Int            @map("account_id")
+  account             BankAccount    @relation(fields: [accountId], references: [id])
+  categoryId          Int?           @map("category_id")
+  category            ChartOfAccount? @relation(fields: [categoryId], references: [id])
+  projectId           Int?           @map("project_id")
+  projectName         String?        @map("project_name") @db.VarChar(200)
+  reconciliationStatus ReconciliationStatus @default(UNRECONCILED) @map("reconciliation_status")
+  remark              String?        @db.Text
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+
+  matchedBy     BankStatementItem?  @relation("TransactionMatch")
+  adjustments   Adjustment[]        @relation("AdjustmentTransaction")
+
+  @@map("transactions")
+}
+
+enum TransactionType {
+  INCOME        // 收入
+  EXPENSE       // 支出
+  TRANSFER      // 转账
+}
+
+enum Direction {
+  IN
+  OUT
+}
+
+enum ReconciliationStatus {
+  UNRECONCILED
+  PARTIALLY_MATCHED
+  RECONCILED
+}
+
+model BankStatementItem {
+  id                Int            @id @default(autoincrement())
+  accountId         Int            @map("account_id")
+  account           BankAccount    @relation(fields: [accountId], references: [id])
+  transactionDate   DateTime       @map("transaction_date")
+  amount            Decimal        @db.Decimal(15, 2)
+  description       String?        @db.Text
+  counterpartyName  String?        @map("counterparty_name") @db.VarChar(200)
+  referenceNo       String?        @map("reference_no") @db.VarChar(100)
+  matchedTransactionId Int?        @unique @map("matched_transaction_id")
+  matchedTransaction    Transaction? @relation("TransactionMatch", fields: [matchedTransactionId], references: [id])
+  matchStatus       MatchStatus    @default(UNMATCHED) @map("match_status")
+  matchDate         DateTime?      @map("match_date")
+  importBatchId     Int?           @map("import_batch_id")
+  importBatch       ImportBatch?   @relation(fields: [importBatchId], references: [id])
+  remark            String?        @db.Text
+  createdAt         DateTime       @default(now()) @map("created_at")
+
+  @@map("bank_statement_items")
+}
+
+enum MatchStatus {
+  UNMATCHED
+  MANUALLY_MATCHED
+  AUTO_MATCHED
+}
+
+model ImportBatch {
+  id              Int       @id @default(autoincrement())
+  accountId       Int       @map("account_id")
+  fileName        String    @map("file_name") @db.VarChar(200)
+  fileType        String    @map("file_type") @db.VarChar(20)
+  totalItems      Int       @default(0) @map("total_items")
+  matchedItems    Int       @default(0) @map("matched_items")
+  unmatchItems    Int       @default(0) @map("unmatched_items")
+  importDate      DateTime  @default(now()) @map("import_date")
+  operatorId      Int?      @map("operator_id")
+  status          String    @default("IMPORTED") @db.VarChar(20)
+
+  items BankStatementItem[]
+
+  @@map("import_batches")
+}
+
+model Reconciliation {
+  id              Int         @id @default(autoincrement())
+  accountId       Int         @map("account_id")
+  account         BankAccount @relation(fields: [accountId], references: [id])
+  period          String      @db.VarChar(7)  // YYYY-MM
+  bankBalance     Decimal     @map("bank_balance") @db.Decimal(15, 2)
+  bookBalance     Decimal     @map("book_balance") @db.Decimal(15, 2)
+  difference      Decimal     @db.Decimal(15, 2)
+  bankBalanceDate DateTime?   @map("bank_balance_date")
+  status          ReconStatus @default(PENDING)
+  remark          String?     @db.Text
+  createdAt       DateTime    @default(now()) @map("created_at")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  adjustments Adjustment[]
+
+  @@map("reconciliations")
+}
+
+enum ReconStatus {
+  PENDING
+  CONFIRMED
+  ARCHIVED
+}
+
+model Adjustment {
+  id               Int            @id @default(autoincrement())
+  reconciliationId Int            @map("reconciliation_id")
+  reconciliation   Reconciliation @relation(fields: [reconciliationId], references: [id])
+  type             AdjustmentType
+  amount           Decimal        @db.Decimal(15, 2)
+  description      String?        @db.Text
+  transactionId    Int?           @map("transaction_id")
+  transaction      Transaction?   @relation("AdjustmentTransaction", fields: [transactionId], references: [id])
+  createdAt        DateTime       @default(now()) @map("created_at")
+
+  @@map("adjustments")
+}
+
+enum AdjustmentType {
+  BANK_INCOME_NOT_RECORDED     // 银行已收企业未收
+  BANK_EXPENSE_NOT_RECORDED    // 银行已付企业未付
+  BOOK_INCOME_NOT_RECORDED     // 企业已收银行未收
+  BOOK_EXPENSE_NOT_RECORDED    // 企业已付银行未付
+  ERROR_CORRECTION             // 差错更正
+}
+
+// ====== 4. 应收应付 ======
+
+model Receivable {
+  id            Int            @id @default(autoincrement())
+  counterpartyId Int           @map("counterparty_id")
+  counterparty  Counterparty   @relation(fields: [counterpartyId], references: [id])
+  amount        Decimal        @db.Decimal(15, 2)
+  receivedAmount Decimal       @default(0) @map("received_amount") @db.Decimal(15, 2)
+  dueDate       DateTime       @map("due_date")
+  projectId     Int?           @map("project_id")
+  projectName   String?        @map("project_name") @db.VarChar(200)
+  description   String?        @db.Text
+  status        ArApStatus     @default(PENDING)
+  remark        String?        @db.Text
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  writes Write[]
+
+  @@map("receivables")
+}
+
+model Payable {
+  id            Int            @id @default(autoincrement())
+  counterpartyId Int           @map("counterparty_id")
+  counterparty  Counterparty   @relation(fields: [counterpartyId], references: [id])
+  amount        Decimal        @db.Decimal(15, 2)
+  paidAmount    Decimal        @default(0) @map("paid_amount") @db.Decimal(15, 2)
+  dueDate       DateTime       @map("due_date")
+  projectId     Int?           @map("project_id")
+  projectName   String?        @map("project_name") @db.VarChar(200)
+  description   String?        @db.Text
+  status        ArApStatus     @default(PENDING)
+  remark        String?        @db.Text
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  writes Write[]
+
+  @@map("payables")
+}
+
+enum ArApStatus {
+  PENDING
+  PARTIAL
+  SETTLED
+}
+
+model Write {
+  id             Int         @id @default(autoincrement())
+  type           WriteType
+  receivableId   Int?        @map("receivable_id")
+  receivable     Receivable? @relation(fields: [receivableId], references: [id])
+  payableId      Int?        @map("payable_id")
+  payable        Payable?    @relation(fields: [payableId], references: [id])
+  amount         Decimal     @db.Decimal(15, 2)
+  writeDate      DateTime    @map("write_date")
+  description    String?     @db.Text
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  @@map("writes")
+}
+
+enum WriteType {
+  RECEIPT    // 收款核销
+  PAYMENT    // 付款核销
+}
+
+// ====== 5. 操作日志与审批 ======
+
+model OperationLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id])
+  action    String   @db.VarChar(100)
+  entity    String?  @db.VarChar(50)
+  entityId  Int?     @map("entity_id")
+  detail    String?  @db.Text
+  ip        String?  @db.VarChar(50)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("operation_logs")
+}
+
+model Approval {
+  id          Int       @id @default(autoincrement())
+  entityType  String    @map("entity_type") @db.VarChar(50)
+  entityId    Int       @map("entity_id")
+  status      String    @default("PENDING") @db.VarChar(20)
+  applicantId Int       @map("applicant_id")
+  applicant   User      @relation(fields: [applicantId], references: [id])
+  approverId  Int?      @map("approver_id")
+  approver    User?     @relation("Approver", fields: [approverId], references: [id])
+  comment     String?   @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("approvals")
+}
+
+// ====== 6. 融资管理 ======
+
+enum FinancingType {
+  LOAN           // 银行贷款
+  CREDIT_LINE    // 授信额度
+  BILL           // 票据融资
+  OTHER          // 其他
+}
+
+enum LoanStatus {
+  DRAFT
+  ACTIVE
+  REPAYING
+  CLOSED
+  OVERDUE
+}
+
+enum RepayStatus {
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+}
+
+model CreditLine {
+  id            Int           @id @default(autoincrement())
+  bankName      String        @map("bank_name") @db.VarChar(100)
+  totalAmount   Decimal       @map("total_amount") @db.Decimal(15, 2)
+  usedAmount    Decimal       @default(0) @map("used_amount") @db.Decimal(15, 2)
+  availableAmount Decimal     @map("available_amount") @db.Decimal(15, 2)
+  currency      String        @default("CNY") @db.VarChar(10)
+  startDate     DateTime      @map("start_date")
+  expiryDate    DateTime      @map("expiry_date")
+  interestRate  Decimal?      @map("interest_rate") @db.Decimal(5, 2)
+  description   String?       @db.Text
+  status        String        @default("ACTIVE") @db.VarChar(20)
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  loanContracts LoanContract[]
+
+  @@map("credit_lines")
+}
+
+model LoanContract {
+  id                Int           @id @default(autoincrement())
+  contractNo        String        @unique @map("contract_no") @db.VarChar(50)
+  creditLineId      Int?          @map("credit_line_id")
+  creditLine        CreditLine?   @relation(fields: [creditLineId], references: [id])
+  bankName          String        @map("bank_name") @db.VarChar(100)
+  type              FinancingType @default(LOAN)
+  amount            Decimal       @db.Decimal(15, 2)
+  interestRate      Decimal       @map("interest_rate") @db.Decimal(5, 2)
+  startDate         DateTime      @map("start_date")
+  endDate           DateTime      @map("end_date")
+  termMonths        Int           @map("term_months")
+  repaymentMethod   String        @map("repayment_method") @db.VarChar(20) // EQUAL_PRINCIPAL, EQUAL_INSTALLMENT, ONE_TIME
+  purpose           String?       @db.Text
+  collateral        String?       @db.Text
+  status            LoanStatus    @default(ACTIVE)
+  remark            String?       @db.Text
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+
+  repaymentPlans    RepaymentPlan[]
+  repaymentRecords  RepaymentRecord[]
+  financingCosts    FinancingCost[]
+
+  @@map("loan_contracts")
+}
+
+model RepaymentPlan {
+  id              Int           @id @default(autoincrement())
+  loanContractId  Int           @map("loan_contract_id")
+  loanContract    LoanContract  @relation(fields: [loanContractId], references: [id])
+  installmentNo   Int           @map("installment_no")
+  dueDate         DateTime      @map("due_date")
+  totalAmount     Decimal       @map("total_amount") @db.Decimal(15, 2)
+  principal       Decimal       @db.Decimal(15, 2)
+  interest        Decimal       @db.Decimal(15, 2)
+  status          RepayStatus   @default(PENDING)
+  paidDate        DateTime?     @map("paid_date")
+  remark          String?       @db.Text
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  records         RepaymentRecord[]
+
+  @@map("repayment_plans")
+}
+
+model RepaymentRecord {
+  id              Int           @id @default(autoincrement())
+  repaymentPlanId Int           @map("repayment_plan_id")
+  repaymentPlan   RepaymentPlan @relation(fields: [repaymentPlanId], references: [id])
+  loanContractId  Int           @map("loan_contract_id")
+  loanContract    LoanContract  @relation(fields: [loanContractId], references: [id])
+  amount          Decimal       @db.Decimal(15, 2)
+  principal       Decimal       @db.Decimal(15, 2)
+  interest        Decimal       @db.Decimal(15, 2)
+  penalty         Decimal       @default(0) @db.Decimal(15, 2)
+  payDate         DateTime      @map("pay_date")
+  paymentAccount  String?       @map("payment_account") @db.VarChar(50)
+  remark          String?       @db.Text
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  @@map("repayment_records")
+}
+
+model FinancingCost {
+  id              Int           @id @default(autoincrement())
+  loanContractId  Int           @map("loan_contract_id")
+  loanContract    LoanContract  @relation(fields: [loanContractId], references: [id])
+  costType        String        @map("cost_type") @db.VarChar(50) // INTEREST, FEE, PENALTY, OTHER
+  amount          Decimal       @db.Decimal(15, 2)
+  occurDate       DateTime      @map("occur_date")
+  description     String?       @db.Text
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  @@map("financing_costs")
+}
+
+enum PlanStatus {
+  INITIAL_CONTACT   // 初步接洽
+  DOCUMENTS         // 资料准备
+  UNDER_REVIEW      // 银行审批中
+  APPROVED          // 已通过
+  REJECTED          // 已拒绝
+  CANCELLED         // 已取消
+}
+
+model FinancingPlan {
+  id              Int           @id @default(autoincrement())
+  bankName        String        @map("bank_name") @db.VarChar(100)
+  type            FinancingType @default(LOAN)
+  amount          Decimal       @db.Decimal(15, 2)
+  status          PlanStatus    @default(INITIAL_CONTACT)
+  contactPerson   String?       @map("contact_person") @db.VarChar(50)
+  contactPhone    String?       @map("contact_phone") @db.VarChar(20)
+  expectedDate    DateTime?     @map("expected_date")
+  completedDate   DateTime?     @map("completed_date")
+  interestRate    Decimal?      @map("interest_rate") @db.Decimal(5, 2)
+  termMonths      Int?          @map("term_months")
+  failReason      String?       @map("fail_reason") @db.Text
+  timeline        String?       @db.Text   // JSON array of progress events
+  remark          String?       @db.Text
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  @@map("financing_plans")
+}
+
+// ====== 7. 股东资金 ======
+
+enum ShareholderTxType {
+  INVESTMENT       // 股东投资
+  LOAN             // 股东借款
+  LOAN_REPAYMENT   // 借款归还
+  DIVIDEND         // 分红
+  WITHDRAW         // 撤资
+}
+
+model Shareholder {
+  id             Int           @id @default(autoincrement())
+  name           String        @db.VarChar(50)
+  phone          String?       @db.VarChar(20)
+  idCard         String?       @map("id_card") @db.VarChar(30)
+  shares         Decimal?      @default(0) @db.Decimal(15, 2)  // 持股金额
+  shareRatio     Decimal?      @map("share_ratio") @db.Decimal(5, 2)  // 持股比例(%)
+  joinDate       DateTime?     @map("join_date")
+  remark         String?       @db.Text
+  isActive       Boolean       @default(true) @map("is_active")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  transactions   ShareholderTransaction[]
+
+  @@map("shareholders")
+}
+
+model ShareholderTransaction {
+  id             Int               @id @default(autoincrement())
+  shareholderId  Int               @map("shareholder_id")
+  shareholder    Shareholder       @relation(fields: [shareholderId], references: [id])
+  type           ShareholderTxType
+  amount         Decimal           @db.Decimal(15, 2)
+  direction      Direction         // IN = 资金流入公司, OUT = 资金流出
+  transDate      DateTime          @map("trans_date")
+  description    String?           @db.Text
+  remark         String?           @db.Text
+  createdAt      DateTime          @default(now()) @map("created_at")
+
+  @@map("shareholder_transactions")
+}
