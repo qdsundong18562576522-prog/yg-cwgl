@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { Table, Button, Modal, Form, Input, Select, DatePicker, Space, message, Card, Popconfirm, Row, Col } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, DollarOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, DollarOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Column } from '@ant-design/charts';
 import api from '../../api/client';
 import dayjs from 'dayjs';
+import { exportExcel } from '../../utils/export';
 
 export default function ReceivablesPage() {
   const [open, setOpen] = useState(false);
@@ -48,10 +50,10 @@ export default function ReceivablesPage() {
 
   const columns = [
     { title: '客户', dataIndex: ['counterparty', 'name'], key: 'cp' },
-    { title: '金额', dataIndex: 'amount', key: 'amount', render: (v: string) => `${parseFloat(v).toLocaleString()} 元` },
+    { title: '金额', dataIndex: 'amount', key: 'amount', sorter: (a: any, b: any) => parseFloat(a.amount) - parseFloat(b.amount), render: (v: string) => `${parseFloat(v).toLocaleString()} 元` },
     { title: '已收', dataIndex: 'receivedAmount', key: 'receivedAmount', render: (v: string) => `${parseFloat(v).toLocaleString()} 元` },
     { title: '未收', key: 'balance', render: (_: any, r: any) => `${(parseFloat(r.amount) - parseFloat(r.receivedAmount)).toLocaleString()} 元` },
-    { title: '到期日', dataIndex: 'dueDate', key: 'dueDate', render: (v: string) => dayjs(v).format('YYYY-MM-DD') },
+    { title: '到期日', dataIndex: 'dueDate', key: 'dueDate', sorter: (a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(), render: (v: string) => dayjs(v).format('YYYY-MM-DD') },
     { title: '项目', dataIndex: 'projectName', key: 'projectName' },
     { title: '状态', dataIndex: 'status', key: 'status', render: (v: string) => ({ PENDING: '待收款', PARTIAL: '部分收款', SETTLED: '已结清' })[v] || v },
     {
@@ -73,16 +75,31 @@ export default function ReceivablesPage() {
       <Card title="应收账款" extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(null); form.resetFields(); setOpen(true); }}>新增应收</Button>}>
         {agingData && (
           <Row gutter={16} style={{ marginBottom: 16 }}>
-            {agingData.map((b: any) => (
-              <Col span={6} key={b.label}>
-                <Card size="small" title={b.label}>
-                  <div style={{ fontSize: 18, fontWeight: 'bold', color: b.label === '90天以上' ? '#cf1322' : '#666' }}>
-                    {b.total.toLocaleString()} 元
-                  </div>
-                  <div style={{ fontSize: 12, color: '#999' }}>{b.items.length} 笔</div>
-                </Card>
-              </Col>
-            ))}
+            <Col span={16}>
+              <Card size="small" title="账龄分布">
+                <Column
+                  data={agingData.map((b: any) => ({ 账龄: b.label, 金额: b.total, 笔数: b.items.length }))}
+                  xField="账龄"
+                  yField="金额"
+                  color={({ 账龄 }: any) => 账龄 === '90天以上' ? '#cf1322' : '#1677ff'}
+                  label={{ text: (d: any) => `${(d.金额 / 10000).toFixed(1)}万` }}
+                />
+              </Card>
+            </Col>
+            <Col span={8}>
+              <Row gutter={[8, 8]}>
+                {agingData.map((b: any) => (
+                  <Col span={12} key={b.label}>
+                    <Card size="small" title={b.label}>
+                      <div style={{ fontSize: 18, fontWeight: 'bold', color: b.label === '90天以上' ? '#cf1322' : '#666' }}>
+                        {b.total.toLocaleString()} 元
+                      </div>
+                      <div style={{ fontSize: 12, color: '#999' }}>{b.items.length} 笔</div>
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+            </Col>
           </Row>
         )}
         <Table dataSource={data?.items || []} columns={columns} rowKey="id" loading={isLoading} pagination={{ pageSize: 20 }} />

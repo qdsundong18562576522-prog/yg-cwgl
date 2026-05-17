@@ -48,10 +48,10 @@ export default function PayablesPage() {
 
   const columns = [
     { title: '供应商', dataIndex: ['counterparty', 'name'], key: 'cp' },
-    { title: '金额', dataIndex: 'amount', key: 'amount', render: (v: string) => `${parseFloat(v).toLocaleString()} 元` },
+    { title: '金额', dataIndex: 'amount', key: 'amount', sorter: (a: any, b: any) => parseFloat(a.amount) - parseFloat(b.amount), render: (v: string) => `${parseFloat(v).toLocaleString()} 元` },
     { title: '已付', dataIndex: 'paidAmount', key: 'paidAmount', render: (v: string) => `${parseFloat(v).toLocaleString()} 元` },
     { title: '未付', key: 'balance', render: (_: any, r: any) => `${(parseFloat(r.amount) - parseFloat(r.paidAmount)).toLocaleString()} 元` },
-    { title: '到期日', dataIndex: 'dueDate', key: 'dueDate', render: (v: string) => dayjs(v).format('YYYY-MM-DD') },
+    { title: '到期日', dataIndex: 'dueDate', key: 'dueDate', sorter: (a: any, b: any) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime(), render: (v: string) => dayjs(v).format('YYYY-MM-DD') },
     { title: '项目', dataIndex: 'projectName', key: 'projectName' },
     { title: '状态', dataIndex: 'status', key: 'status', render: (v: string) => ({ PENDING: '待付款', PARTIAL: '部分付款', SETTLED: '已结清' })[v] || v },
     {

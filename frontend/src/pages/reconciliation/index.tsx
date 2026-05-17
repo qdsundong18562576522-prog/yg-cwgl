@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Card, Row, Col, Select, Button, Table, Statistic, message, Divider, Space, DatePicker, Descriptions } from 'antd';
-import { SwapOutlined, CheckCircleOutlined, LinkOutlined } from '@ant-design/icons';
+import { SwapOutlined, CheckCircleOutlined, LinkOutlined, DownloadOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../api/client';
 import dayjs from 'dayjs';
+import { exportExcel } from '../../utils/export';
 
 export default function ReconciliationPage() {
   const [accountId, setAccountId] = useState<number | null>(null);
@@ -93,7 +94,30 @@ export default function ReconciliationPage() {
       )}
 
       {balanceAdj && (
-        <Card title="余额调节表" style={{ marginTop: 16 }}>
+        <Card title="余额调节表" style={{ marginTop: 16 }}
+          extra={
+            <Button size="small" icon={<DownloadOutlined />} onClick={() => {
+              exportExcel({
+                title: `余额调节表_${balanceAdj.accountName}_${period}`,
+                filename: `余额调节表_${period}`,
+                columns: [
+                  { header: '项目', key: 'item', width: 28 },
+                  { header: '金额', key: 'value', width: 28 },
+                ],
+                data: [
+                  { item: '银行对账单余额', value: balanceAdj.bankBalance?.toLocaleString() },
+                  { item: '加：企业已收银行未收', value: balanceAdj.bankIncomeNotRecorded?.reduce((s: number, t: any) => s + parseFloat(t.amount), 0).toLocaleString() },
+                  { item: '减：企业已付银行未付', value: balanceAdj.bankExpenseNotRecorded?.reduce((s: number, t: any) => s + parseFloat(t.amount), 0).toLocaleString() },
+                  { item: '调节后银行余额', value: balanceAdj.adjustedBankBalance?.toLocaleString() },
+                  { item: '', value: '' },
+                  { item: '企业账面余额', value: balanceAdj.bookBalance?.toLocaleString() },
+                  { item: '加：银行已收企业未收', value: balanceAdj.bookIncomeNotRecorded?.reduce((s: number, i: any) => s + parseFloat(i.amount), 0).toLocaleString() },
+                  { item: '减：银行已付企业未付', value: balanceAdj.bookExpenseNotRecorded?.reduce((s: number, i: any) => s + Math.abs(parseFloat(i.amount)), 0).toLocaleString() },
+                  { item: '调节后账面余额', value: balanceAdj.adjustedBookBalance?.toLocaleString() },
+                ],
+              });
+            }}>导出</Button>
+          }>
           <Descriptions bordered column={2} size="small">
             <Descriptions.Item label="银行对账单余额">{balanceAdj.bankBalance?.toLocaleString()}</Descriptions.Item>
             <Descriptions.Item label="企业账面余额">{balanceAdj.bookBalance?.toLocaleString()}</Descriptions.Item>
