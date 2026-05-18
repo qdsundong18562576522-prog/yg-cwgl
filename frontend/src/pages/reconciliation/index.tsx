@@ -36,11 +36,6 @@ export default function ReconciliationPage() {
     onSuccess: () => { message.success('手工匹配成功'); refetchSummary(); refetchAdj(); },
   });
 
-  const unmatchMutation = useMutation({
-    mutationFn: (statementItemId: number) => api.post('/reconciliation/unmatch', { statementItemId }),
-    onSuccess: () => { message.success('已取消匹配'); refetchSummary(); refetchAdj(); },
-  });
-
   const saveReconMutation = useMutation({
     mutationFn: () => api.post('/reconciliation/save', {
       accountId, period, bankBalance: summary?.bankBalance || 0, bookBalance: summary?.bookBalance || 0,

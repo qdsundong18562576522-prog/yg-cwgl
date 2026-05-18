@@ -17,7 +17,7 @@ interface AuthState {
   fetchProfile: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set) => ({
   user: JSON.parse(localStorage.getItem('user') || 'null'),
 
   isAuthenticated: () => {

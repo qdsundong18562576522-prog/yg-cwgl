@@ -29,6 +29,7 @@ export default function BankStatementsPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.delete(`/bank-statements/${id}`),
     onSuccess: () => { message.success('删除成功'); queryClient.invalidateQueries({ queryKey: ['bank-statements'] }); },
+    onError: (err: any) => message.error(err.response?.data?.message || '删除失败'),
   });
 
   const handleFileUpload = (file: File) => {
@@ -72,21 +73,21 @@ export default function BankStatementsPage() {
     <div>
       <Card title="银行流水" extra={<Button type="primary" icon={<UploadOutlined />} onClick={() => setImportOpen(true)}>导入流水</Button>}>
         <Row gutter={8} style={{ marginBottom: 16 }}>
-          <Col span={5}><Select placeholder="账户" allowClear style={{ width: '100%' }} onChange={(v) => setParams(p => ({ ...p, accountId: v }))} options={accounts?.map((a: any) => ({ value: a.id, label: a.name }))} /></Col>
-          <Col span={5}><Select placeholder="匹配状态" allowClear style={{ width: '100%' }} onChange={(v) => setParams(p => ({ ...p, matchStatus: v }))} options={[{ value: 'UNMATCHED', label: '未匹配' }, { value: 'AUTO_MATCHED', label: '自动匹配' }, { value: 'MANUALLY_MATCHED', label: '手工匹配' }]} /></Col>
+          <Col span={5}><Select placeholder="账户" allowClear style={{ width: '100%' }} onChange={(v) => setParams((prev: any) => ({ ...prev, accountId: v }))} options={accounts?.map((a: any) => ({ value: a.id, label: a.name }))} /></Col>
+          <Col span={5}><Select placeholder="匹配状态" allowClear style={{ width: '100%' }} onChange={(v) => setParams((prev: any) => ({ ...prev, matchStatus: v }))} options={[{ value: 'UNMATCHED', label: '未匹配' }, { value: 'AUTO_MATCHED', label: '自动匹配' }, { value: 'MANUALLY_MATCHED', label: '手工匹配' }]} /></Col>
           <Col><Button onClick={() => setParams({ page: 1, pageSize: 20 })}>重置</Button></Col>
         </Row>
         <Row gutter={8} style={{ marginBottom: 16 }}>
-          <Col><DatePicker placeholder="开始日期" onChange={(d) => setParams(p => ({ ...p, startDate: d?.format('YYYY-MM-DD') }))} /></Col>
-          <Col><DatePicker placeholder="结束日期" onChange={(d) => setParams(p => ({ ...p, endDate: d?.format('YYYY-MM-DD') }))} /></Col>
+          <Col><DatePicker placeholder="开始日期" onChange={(d) => setParams((prev: any) => ({ ...prev, startDate: d?.format('YYYY-MM-DD') }))} /></Col>
+          <Col><DatePicker placeholder="结束日期" onChange={(d) => setParams((prev: any) => ({ ...prev, endDate: d?.format('YYYY-MM-DD') }))} /></Col>
           <Col>
             <Radio.Group size="small" optionType="button" buttonStyle="solid"
               onChange={(e) => {
                 const v = e.target.value;
-                if (v === 'today') { const t = dayjs(); setParams(p => ({ ...p, startDate: t.format('YYYY-MM-DD'), endDate: t.format('YYYY-MM-DD') })); }
-                else if (v === 'week') { setParams(p => ({ ...p, startDate: dayjs().subtract(7, 'day').format('YYYY-MM-DD'), endDate: dayjs().format('YYYY-MM-DD') })); }
-                else if (v === 'month') { setParams(p => ({ ...p, startDate: dayjs().startOf('month').format('YYYY-MM-DD'), endDate: dayjs().format('YYYY-MM-DD') })); }
-                else if (v === 'clear') { const { startDate, endDate, ...rest } = p; setParams(rest); }
+                if (v === 'today') { const t = dayjs(); setParams((prev: any) => ({ ...prev, startDate: t.format('YYYY-MM-DD'), endDate: t.format('YYYY-MM-DD') })); }
+                else if (v === 'week') { setParams((prev: any) => ({ ...prev, startDate: dayjs().subtract(7, 'day').format('YYYY-MM-DD'), endDate: dayjs().format('YYYY-MM-DD') })); }
+                else if (v === 'month') { setParams((prev: any) => ({ ...prev, startDate: dayjs().startOf('month').format('YYYY-MM-DD'), endDate: dayjs().format('YYYY-MM-DD') })); }
+                else if (v === 'clear') { setParams((prev: any) => { const { startDate, endDate, ...rest } = prev; return rest; }); }
               }}
               options={[
                 { label: '今天', value: 'today' },
@@ -97,7 +98,7 @@ export default function BankStatementsPage() {
           </Col>
         </Row>
         <Table dataSource={data?.items || []} columns={columns} rowKey="id" loading={isLoading}
-          pagination={{ current: params.page, pageSize: params.pageSize, total: data?.total, onChange: (page, pageSize) => setParams(p => ({ ...p, page, pageSize })) }} />
+          pagination={{ current: params.page, pageSize: params.pageSize, total: data?.total, onChange: (page, pageSize) => setParams((prev: any) => ({ ...prev, page, pageSize })) }} />
       </Card>
       <Modal title="导入银行流水" open={importOpen} onCancel={() => { setImportOpen(false); setImportData([]); }} onOk={() => importAccountId && importMutation.mutate({ accountId: importAccountId, items: importData })} confirmLoading={importMutation.isPending} width={600}>
         <Form layout="vertical">

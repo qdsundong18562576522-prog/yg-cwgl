@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Table, Button, Modal, Form, Input, Select, DatePicker, Space, message, Card, Popconfirm, Row, Col, Tag } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined } from '@ant-design/icons';
+import { Table, Button, Modal, Form, Input, Select, DatePicker, Space, message, Card, Popconfirm, Row, Col, Radio } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../api/client';
 import dayjs from 'dayjs';
@@ -32,6 +32,7 @@ export default function TransactionsPage() {
   const deleteMutation = useMutation({
     mutationFn: (id: number) => api.delete(`/transactions/${id}`),
     onSuccess: () => { message.success('删除成功'); queryClient.invalidateQueries({ queryKey: ['transactions'] }); },
+    onError: (err: any) => message.error(err.response?.data?.message || '删除失败'),
   });
 
   const columns = [
@@ -60,24 +61,24 @@ export default function TransactionsPage() {
     <div>
       <Card title="内部流水" extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(null); form.resetFields(); setOpen(true); }}>新增流水</Button>}>
         <Row gutter={[8, 8]} style={{ marginBottom: 16 }}>
-          <Col span={5}><Select placeholder="账户" allowClear style={{ width: '100%' }} onChange={(v) => setParams(p => ({ ...p, accountId: v }))} options={accounts?.map((a: any) => ({ value: a.id, label: a.name }))} /></Col>
-          <Col span={4}><Select placeholder="类型" allowClear style={{ width: '100%' }} onChange={(v) => setParams(p => ({ ...p, type: v }))} options={[{ value: 'INCOME', label: '收入' }, { value: 'EXPENSE', label: '支出' }, { value: 'TRANSFER', label: '转账' }]} /></Col>
-          <Col span={4}><Select placeholder="方向" allowClear style={{ width: '100%' }} onChange={(v) => setParams(p => ({ ...p, direction: v }))} options={[{ value: 'IN', label: '流入' }, { value: 'OUT', label: '流出' }]} /></Col>
-          <Col span={4}><Select placeholder="往来单位" allowClear style={{ width: '100%' }} onChange={(v) => setParams(p => ({ ...p, counterpartyId: v }))} options={counterparties?.map((c: any) => ({ value: c.id, label: c.name }))} /></Col>
-          <Col span={4}><Select placeholder="对账状态" allowClear style={{ width: '100%' }} onChange={(v) => setParams(p => ({ ...p, reconciliationStatus: v }))} options={[{ value: 'UNRECONCILED', label: '未对账' }, { value: 'RECONCILED', label: '已对账' }]} /></Col>
+          <Col span={5}><Select placeholder="账户" allowClear style={{ width: '100%' }} onChange={(v) => setParams((prev: any) => ({ ...prev, accountId: v }))} options={accounts?.map((a: any) => ({ value: a.id, label: a.name }))} /></Col>
+          <Col span={4}><Select placeholder="类型" allowClear style={{ width: '100%' }} onChange={(v) => setParams((prev: any) => ({ ...prev, type: v }))} options={[{ value: 'INCOME', label: '收入' }, { value: 'EXPENSE', label: '支出' }, { value: 'TRANSFER', label: '转账' }]} /></Col>
+          <Col span={4}><Select placeholder="方向" allowClear style={{ width: '100%' }} onChange={(v) => setParams((prev: any) => ({ ...prev, direction: v }))} options={[{ value: 'IN', label: '流入' }, { value: 'OUT', label: '流出' }]} /></Col>
+          <Col span={4}><Select placeholder="往来单位" allowClear style={{ width: '100%' }} onChange={(v) => setParams((prev: any) => ({ ...prev, counterpartyId: v }))} options={counterparties?.map((c: any) => ({ value: c.id, label: c.name }))} /></Col>
+          <Col span={4}><Select placeholder="对账状态" allowClear style={{ width: '100%' }} onChange={(v) => setParams((prev: any) => ({ ...prev, reconciliationStatus: v }))} options={[{ value: 'UNRECONCILED', label: '未对账' }, { value: 'RECONCILED', label: '已对账' }]} /></Col>
           <Col span={3}><Button onClick={() => setParams({ page: 1, pageSize: 20 })}>重置</Button></Col>
         </Row>
         <Row gutter={8} style={{ marginBottom: 16 }}>
-          <Col><DatePicker placeholder="开始日期" onChange={(d) => setParams(p => ({ ...p, startDate: d?.format('YYYY-MM-DD') }))} /></Col>
-          <Col><DatePicker placeholder="结束日期" onChange={(d) => setParams(p => ({ ...p, endDate: d?.format('YYYY-MM-DD') }))} /></Col>
+          <Col><DatePicker placeholder="开始日期" onChange={(d) => setParams((prev: any) => ({ ...prev, startDate: d?.format('YYYY-MM-DD') }))} /></Col>
+          <Col><DatePicker placeholder="结束日期" onChange={(d) => setParams((prev: any) => ({ ...prev, endDate: d?.format('YYYY-MM-DD') }))} /></Col>
           <Col>
             <Radio.Group size="small" optionType="button" buttonStyle="solid"
               onChange={(e) => {
                 const v = e.target.value;
-                if (v === 'today') { const t = dayjs(); setParams(p => ({ ...p, startDate: t.format('YYYY-MM-DD'), endDate: t.format('YYYY-MM-DD') })); }
-                else if (v === 'week') { setParams(p => ({ ...p, startDate: dayjs().subtract(7, 'day').format('YYYY-MM-DD'), endDate: dayjs().format('YYYY-MM-DD') })); }
-                else if (v === 'month') { setParams(p => ({ ...p, startDate: dayjs().startOf('month').format('YYYY-MM-DD'), endDate: dayjs().format('YYYY-MM-DD') })); }
-                else if (v === 'clear') { const { startDate, endDate, ...rest } = p; setParams(rest); }
+                if (v === 'today') { const t = dayjs(); setParams((prev: any) => ({ ...prev, startDate: t.format('YYYY-MM-DD'), endDate: t.format('YYYY-MM-DD') })); }
+                else if (v === 'week') { setParams((prev: any) => ({ ...prev, startDate: dayjs().subtract(7, 'day').format('YYYY-MM-DD'), endDate: dayjs().format('YYYY-MM-DD') })); }
+                else if (v === 'month') { setParams((prev: any) => ({ ...prev, startDate: dayjs().startOf('month').format('YYYY-MM-DD'), endDate: dayjs().format('YYYY-MM-DD') })); }
+                else if (v === 'clear') { setParams((prev: any) => { const { startDate, endDate, ...rest } = prev; return rest; }); }
               }}
               options={[
                 { label: '今天', value: 'today' },
@@ -88,7 +89,7 @@ export default function TransactionsPage() {
           </Col>
         </Row>
         <Table dataSource={data?.items || []} columns={columns} rowKey="id" loading={isLoading}
-          pagination={{ current: params.page, pageSize: params.pageSize, total: data?.total, onChange: (page, pageSize) => setParams(p => ({ ...p, page, pageSize })) }} />
+          pagination={{ current: params.page, pageSize: params.pageSize, total: data?.total, onChange: (page, pageSize) => setParams((prev: any) => ({ ...prev, page, pageSize })) }} />
       </Card>
       <Modal title={editing ? '编辑流水' : '新增流水'} open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()} width={600}>
         <Form form={form} layout="vertical" onFinish={saveMutation.mutate}>

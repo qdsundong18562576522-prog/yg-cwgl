@@ -26,7 +26,7 @@ export async function exportExcel({
   // Header row
   const headerRow = sheet.addRow(columns.map(c => c.header));
   headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-  headerRow.fill = { type: 'pattern', pattern: 'solid', fg: { argb: 'FF1677FF' } };
+  headerRow.fill = { type: 'pattern', pattern: 'solid', fg: { argb: 'FF1677FF' } } as any;
   headerRow.alignment = { horizontal: 'center' };
   headerRow.height = 28;
 

@@ -1,7 +1,8 @@
 import axios from 'axios';
 
+const API_HOST = window.location.hostname;
 const api = axios.create({
-  baseURL: 'http://localhost:12500',
+  baseURL: `http://${API_HOST}:12500`,
   timeout: 15000,
 });
 
