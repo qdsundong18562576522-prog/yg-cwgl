@@ -8,19 +8,20 @@ import rateLimit from 'express-rate-limit';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  const expressApp = app.getHttpAdapter().getInstance();
+  const cors = require('cors');
+  expressApp.use(cors({ origin: true, credentials: true }));
+
   app.use(helmet());
 
   app.use(rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 200,
+    max: 1000,
     standardHeaders: true,
     legacyHeaders: false,
     message: { code: 429, message: '请求过于频繁，请稍后再试' },
+    skip: (req: any) => req.method === 'OPTIONS',
   }));
-
-  const expressApp = app.getHttpAdapter().getInstance();
-  const cors = require('cors');
-  expressApp.use(cors({ origin: true, credentials: true }));
 
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 

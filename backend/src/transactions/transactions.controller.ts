@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, ParseIntPipe, Req } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TransactionsService } from './transactions.service';
 
@@ -23,8 +23,9 @@ export class TransactionsController {
   }
 
   @Delete(':id')
-  async remove(@Param('id', ParseIntPipe) id: number) {
-    return { code: 0, data: await this.service.remove(id) };
+  async remove(@Param('id', ParseIntPipe) id: number, @Req() req: any) {
+    const role = req.user?.role;
+    return { code: 0, data: await this.service.remove(id, role) };
   }
 
   @Post('batch-import')

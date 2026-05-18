@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -42,9 +42,10 @@ export class TransactionsService {
     return this.prisma.transaction.update({ where: { id }, data });
   }
 
-  async remove(id: number) {
+  async remove(id: number, userRole?: string) {
     const tx = await this.prisma.transaction.findUnique({ where: { id } });
-    if (tx?.reconciliationStatus === 'RECONCILED') {
+    if (!tx) throw new NotFoundException('流水不存在');
+    if (tx.reconciliationStatus === 'RECONCILED' && (!userRole || userRole !== 'admin')) {
       throw new BadRequestException('已对账的流水不能删除');
     }
     return this.prisma.transaction.delete({ where: { id } });
